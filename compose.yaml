@@ -1,0 +1,25 @@
+services:
+  postgres-demonstration:
+    # https://hub.docker.com/_/postgres ; the demo database wants 15 or later
+    image: postgres:18
+    container_name: postgres-demonstration
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: password
+      # POSTGRES_DB is left at its default, `postgres`: the init scripts run connected to it, and the dump
+      # drops and recreates `demo`, which it could not do while connected to `demo`
+    volumes:
+      # run once, in name order, against an empty data directory, as the `postgres` superuser:
+      #   00-create-database-demo.sql   committed; see the comment in it
+      #   demo-20250901-3m.sql.gz       fetched by ./_fetch-demo.sh, gitignored; the entrypoint gunzips it itself
+      # https://postgrespro.com/community/demodb
+      - ./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # -d demo: the entrypoint accepts outside connections only after the init scripts, so this is green
+      # only once the dump is loaded. That is minutes, not seconds -- about 1.3 GB of tables and indexes
+      # for the 3m edition -- hence the budget of 5s x 240 = 20 minutes.
+      test: [ "CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "demo" ]
+      interval: 5s
+      timeout: 5s
+      retries: 240
